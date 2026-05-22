@@ -8,14 +8,11 @@ export default function Home() {
       <div className="max-w-4xl w-full text-center space-y-8">
         {/* Header Section */}
         <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-sm border border-blue-500/20 font-medium">
-            🧬 Vaxcyte Biologics Platform
-          </div>
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
             Alphafold Sequence Management Portal
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto">
-            Submit raw amino acid chains, manage active predictive folding pipelines, 
+            Submit raw amino acid chains, manage active protein folding predictions, 
             and analyze 3D protein models in real time.
           </p>
         </div>
