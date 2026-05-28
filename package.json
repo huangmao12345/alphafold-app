@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed": "tsx scripts/seed.tsx"
   },
   "dependencies": {
     "graphql": "^16.14.0",
@@ -16,9 +17,6 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "uuid": "^14.0.0"
-  },
-  "": {
-    "seed": "npx tsx prisma/seed.ts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

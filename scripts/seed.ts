@@ -86,7 +86,7 @@ async function runSeedEngine() {
   `;
   const userResult = await pool.query(userQuery, [
     'usr_vaxcyte_daniel',
-    'dhuang@vaxcyte.com',
+    'daniel.huang@vaxcyte.com',
     'Daniel',
     'Huang',
     'Bioinformatics Engineer',

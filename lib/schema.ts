@@ -1,9 +1,8 @@
-// src/lib/schema.ts
-import { Pool } from 'pg';
-
-// Assumed database connection pool export from your local setup
-// e.g., export const pool = new Pool({ database: 'vaxcyte_alphafold' });
 import { pool } from './db'; 
+import { GraphQLError } from 'graphql';
+
+// Standard 20 known amino acids rule
+const AMINO_ACID_REGEX = /^[ACDEFGHIKLMNPQRSTVWY]+$/;
 
 export const typeDefs = `
   enum JobStatus {
@@ -22,37 +21,42 @@ export const typeDefs = `
   type User {
     id: ID!
     email: String!
-    first_name: String!
-    last_name: String!
-    job_title: String
+    firstName: String!
+    lastName: String!
+    jobTitle: String
     department: String
     role: Role!
-    created_at: String!
-    updated_at: String!
+    createdAt: String!
+    updatedAt: String!
   }
 
   type Project {
     id: ID!
     name: String!
     description: String
-    created_at: String!
+    createdAt: String!
   }
 
   type Sequence {
     id: ID!
     name: String!
-    amino_acids: String!
+    aminoAcids: String!
     status: JobStatus!
-    pdb_url: String
+    pdbUrl: String
     confidence: Float
-    project_id: String!
-    created_by_at: String!
-    created_at: String!
-    updated_at: String!
-    
-    # Relational field definitions for GraphQL nesting
+    projectId: String!
+    createdByAt: String!
+    createdAt: String!
+    updatedAt: String!
     project: Project!
     creator: User!
+  }
+
+  # Input object designed for multi-row submission actions
+  input SequenceInput {
+    name: String!
+    aminoAcids: String!
+    projectId: String!
   }
 
   type Query {
@@ -69,85 +73,234 @@ export const typeDefs = `
 
     createSequence(
       name: String!
-      amino_acids: String!
-      project_id: String!
-      created_by_at: String!
+      aminoAcids: String!
+      projectId: String!
     ): Sequence!
+
+    # New Batch-enabled sequence submission pipeline
+    submitBulkSequences(
+      sequences: [SequenceInput!]!
+    ): [Sequence!]!
   }
 `;
 
+interface SequenceInputArgs {
+  name: string;
+  aminoAcids: string;
+  projectId: string;
+}
+
 export const resolvers = {
   Query: {
-    // 1. Fetch all structural targets sorted by recent runs
     sequences: async () => {
-      const query = 'SELECT * FROM "Sequence" ORDER BY created_at DESC';
+      const query = `
+        SELECT 
+          id, 
+          name, 
+          amino_acids AS "aminoAcids", 
+          status, 
+          pdb_url AS "pdbUrl", 
+          confidence, 
+          project_id AS "projectId", 
+          created_by_at AS "createdByAt", 
+          created_at AS "createdAt", 
+          updated_at AS "updatedAt" 
+        FROM "Sequence" 
+        ORDER BY created_at DESC
+      `;
       const result = await pool.query(query);
       return result.rows;
     },
 
-    // 2. Fetch all research antigen tracking projects
     projects: async () => {
-      const query = 'SELECT * FROM "Project" ORDER BY created_at DESC';
+      const query = `
+        SELECT 
+          id, 
+          name, 
+          description, 
+          created_at AS "createdAt" 
+        FROM "Project" 
+        ORDER BY created_at DESC
+      `;
       const result = await pool.query(query);
       return result.rows;
     },
 
-    // 3. Fetch an isolated model sequence item
     sequence: async (_parent: any, args: { id: string }) => {
-      const query = 'SELECT * FROM "Sequence" WHERE id = $1';
+      const query = `
+        SELECT 
+          id, 
+          name, 
+          amino_acids AS "aminoAcids", 
+          status, 
+          pdb_url AS "pdbUrl", 
+          confidence, 
+          project_id AS "projectId", 
+          created_by_at AS "createdByAt", 
+          created_at AS "createdAt", 
+          updated_at AS "updatedAt" 
+        FROM "Sequence" 
+        WHERE id = $1
+      `;
       const result = await pool.query(query, [args.id]);
       return result.rows[0] || null;
     }
   },
 
-  // 👇 Pure Relational Fields Layer (No more complex SQL joins required!)
   Sequence: {
-    // Fetches the parent project record when requested in the GraphQL tree
-    project: async (parent: { project_id: string }) => {
-      const query = 'SELECT * FROM "Project" WHERE id = $1';
-      const result = await pool.query(query, [parent.project_id]);
+    project: async (parent: { projectId: string }) => {
+      const query = `
+        SELECT id, name, description, created_at AS "createdAt" 
+        FROM "Project" 
+        WHERE id = $1
+      `;
+      const result = await pool.query(query, [parent.projectId]);
       return result.rows[0];
     },
-    // Fetches the scientist record who owned this model generation run
-    creator: async (parent: { created_by_at: string }) => {
-      const query = 'SELECT * FROM "User" WHERE id = $1';
-      const result = await pool.query(query, [parent.created_by_at]);
+    creator: async (parent: { createdByAt: string }) => {
+      const query = `
+        SELECT 
+          id, 
+          email, 
+          first_name AS "firstName", 
+          last_name AS "lastName", 
+          job_title AS "jobTitle", 
+          department, 
+          role, 
+          created_at AS "createdAt", 
+          updated_at AS "updatedAt" 
+        FROM "User" 
+        WHERE id = $1
+      `;
+      const result = await pool.query(query, [parent.createdByAt]);
       return result.rows[0];
     }
   },
 
   Mutation: {
-    // 4. Mutation to create a project first so we have a valid parent row
     createProject: async (_parent: any, args: { name: string; description?: string }) => {
       const { name, description } = args;
-      const newId = crypto.randomUUID(); // Native Web Crypto API, no npm installations required!
-      
       const query = `
-        INSERT INTO "Project" (id, name, description)
-        VALUES ($1, $2, $3)
-        RETURNING *
+        INSERT INTO "Project" (name, description)
+        VALUES ($1, $2)
+        RETURNING id, name, description, created_at AS "createdAt"
       `;
-      const result = await pool.query(query, [newId, name, description || null]);
+      const result = await pool.query(query, [name, description || null]);
       return result.rows[0];
     },
 
-    // 5. Mutation to submit a structural folding target safely linking to the real parents
     createSequence: async (
       _parent: any, 
-      args: { name: string; amino_acids: string; project_id: string; created_by_at: string }
+      args: { name: string; aminoAcids: string; projectId: string }
     ) => {
-      const { name, amino_acids, project_id, created_by_at } = args;
-      const newId = crypto.randomUUID();
-      const now = new Date().toISOString();
-      
+      const { name, aminoAcids, projectId } = args;
       const query = `
-        INSERT INTO "Sequence" (id, name, amino_acids, status, project_id, created_by_at, created_at, updated_at)
-        VALUES ($1, $2, $3, 'SUBMITTED', $4, $5, $6, $7)
-        RETURNING *
+        INSERT INTO "Sequence" (name, amino_acids, status, project_id, created_by_at, updated_at)
+        VALUES ($1, $2, 'SUBMITTED', $3, 'cmpb7jyds00007u2gz853b5ic', NOW())
+        RETURNING 
+          id, 
+          name, 
+          amino_acids AS "aminoAcids", 
+          status, 
+          pdb_url AS "pdbUrl", 
+          confidence, 
+          project_id AS "projectId", 
+          created_by_at AS "createdByAt", 
+          created_at AS "createdAt", 
+          updated_at AS "updatedAt"
       `;
-      const values = [newId, name, amino_acids, project_id, created_by_at, now, now];
+      const values = [name, aminoAcids, projectId];
       const result = await pool.query(query, values);
       return result.rows[0];
+    },
+
+    submitBulkSequences: async (
+      _parent: any,
+      args: { sequences: SequenceInputArgs[] }
+    ) => {
+      const { sequences } = args;
+
+      if (!sequences || sequences.length === 0) {
+        throw new GraphQLError("Submission payload must contain at least one protein entry.");
+      }
+
+      const standardizedSequences = sequences.map(item => ({
+        ...item,
+        aminoAcids: item.aminoAcids.trim().toUpperCase()
+      }));
+
+      // --- CRITICAL DOMAIN RULES VALIDATION PIPELINE ---
+      for (const item of standardizedSequences) {
+        if (!item.name.trim() || !item.projectId || !item.aminoAcids) {
+          throw new GraphQLError(`Validation failure for sequence "${item.name}": Complete text structure inputs are required.`);
+        }
+
+        if (item.aminoAcids.length > 1500) {
+          throw new GraphQLError(`Validation failure for sequence "${item.name}": Chain length exceeds the 1500 limit.`);
+        }
+
+        if (!AMINO_ACID_REGEX.test(item.aminoAcids)) {
+          throw new GraphQLError(`Validation failure for sequence "${item.name}": Contains invalid letters or symbols.`);
+        }
+      }
+
+      // Check against Database for pre-existing chains targeting standard snake_case column
+      const uniqueChains = Array.from(new Set(standardizedSequences.map(s => s.aminoAcids)));
+      const checkDuplicateQuery = `
+        SELECT amino_acids AS "aminoAcids" 
+        FROM "Sequence" 
+        WHERE amino_acids = ANY($1)
+      `;
+      const duplicateCheckResult = await pool.query(checkDuplicateQuery, [uniqueChains]);
+      
+      if (duplicateCheckResult.rows.length > 0) {
+        const structuralCollisions = duplicateCheckResult.rows.map(r => r.aminoAcids);
+        const offendingTarget = standardizedSequences.find(s => structuralCollisions.includes(s.aminoAcids));
+        throw new GraphQLError(
+          `Validation failure: A matching structural variant sequence already exists in the records for candidate: "${offendingTarget?.name}".`
+        );
+      }
+
+      // --- ALL PIPELINE CHECKS PASSED: RUN TRANSACTION STORAGE ---
+      const insertedRecords = [];
+      const client = await pool.connect();
+
+      try {
+        await client.query('BEGIN');
+        
+        // Structured using lowercase snake_case targets, returned with exact camelCase aliases
+        const insertQuery = `
+          INSERT INTO "Sequence" (name, amino_acids, status, project_id, created_by_at, updated_at)
+          VALUES ($1, $2, 'SUBMITTED', $3, 'cmpb7jyds00007u2gz853b5ic', NOW())
+          RETURNING 
+            id, 
+            name, 
+            amino_acids AS "aminoAcids", 
+            status, 
+            project_id AS "projectId", 
+            created_by_at AS "createdByAt", 
+            created_at AS "createdAt", 
+            updated_at AS "updatedAt"
+        `;
+
+        for (const item of standardizedSequences) {
+          const result = await client.query(insertQuery, [
+            item.name.trim(),
+            item.aminoAcids,
+            item.projectId
+          ]);
+          insertedRecords.push(result.rows[0]);
+        }
+
+        await client.query('COMMIT');
+        return insertedRecords;
+
+      } catch (transactionError) {
+        await client.query('ROLLBACK');
+        throw new GraphQLError("Database error processing batch queue pipeline. All actions rolled back.");
+      } finally {
+        client.release();
+      }
     }
   }
 };

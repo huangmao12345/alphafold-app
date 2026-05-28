@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 
 type JobStatus = "SUBMITTED" | "APPROVED" | "IN_PROCESS" | "PROCESSED" | "FAILED";
 
-// 🛠️ synchronized cleanly with our snake_case database schema values
+// 🛠️ Updated to match camelCase and include timestamp
 interface Sequence {
   id: string;
   name: string;
-  amino_acids: string;
+  createdAt: string; // 👈 Swapped amino_acids for createdAt
   status: JobStatus;
   project: {
     name: string;
@@ -33,7 +33,7 @@ export default function SequencesDashboard() {
                 sequences {
                   id
                   name
-                  amino_acids
+                  createdAt   # 👈 Swapped aminoAcids for createdAt
                   status
                   project {
                     name
@@ -46,6 +46,7 @@ export default function SequencesDashboard() {
 
         const { data } = await response.json();
         if (data?.sequences) {
+          // Note: Backend SQL already handles "ORDER BY created_at DESC"
           setSequences(data.sequences);
         }
       } catch (error) {
@@ -101,8 +102,8 @@ export default function SequencesDashboard() {
                 <tr className="bg-slate-800/50 border-b border-slate-700/50">
                   <th className="p-4 font-semibold text-slate-300">Name</th>
                   <th className="p-4 font-semibold text-slate-300">Project</th>
-                  <th className="p-4 font-semibold text-slate-300">Sequence</th>
                   <th className="p-4 font-semibold text-slate-300">Status</th>
+                  <th className="p-4 font-semibold text-slate-300">Submitted At</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
@@ -119,20 +120,26 @@ export default function SequencesDashboard() {
                       onClick={() => router.push(`/sequences/${seq.id}`)}
                       className="hover:bg-slate-800/50 transition-colors cursor-pointer group"
                     >
-                      <td className="p-4 font-medium text-slate-100 group-hover:text-blue-400 transition-colors">
-                        {seq.name}
-                      </td>
+                      <td className="p-4 font-medium text-slate-100 group-hover:text-blue-400 transition-colors">{seq.name}</td>
                       <td className="p-4 text-slate-400">{seq.project?.name || "N/A"}</td>
-                      <td className="p-4">
-                        <div className="max-w-xs truncate text-slate-500 font-mono text-sm">
-                          {/* 🛠️ Fixed property linkage down here */}
-                          {seq.amino_acids} 
-                        </div>
-                      </td>
                       <td className="p-4">
                         <span className={getStatusBadge(seq.status)}>
                           {seq.status.replace("_", " ")}
                         </span>
+                      </td>
+                      <td className="p-4 text-slate-400 font-mono text-xs">
+                        {seq.createdAt ? (() => {
+                          // 1. Coerce whatever type comes across into a base-10 integer number
+                          const timestampInt = parseInt(String(seq.createdAt), 10);
+                          
+                          // 2. If it's a valid numerical timestamp, build a real date, otherwise wrap the raw string fallback
+                          const dateObject = !isNaN(timestampInt) ? new Date(timestampInt) : new Date(seq.createdAt);
+                          
+                          // 3. Fallback check to safely print just the YYYY-MM-DD string part without crashing
+                          return !isNaN(dateObject.getTime()) 
+                            ? dateObject.toISOString().split('T')[0] 
+                            : "N/A";
+                        })() : "N/A"}
                       </td>
                     </tr>
                   ))

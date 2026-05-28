@@ -12,8 +12,8 @@ export default function Home() {
             Alphafold Sequence Management Portal
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto">
-            Submit raw amino acid chains, manage active protein folding predictions, 
-            and analyze 3D protein models in real time.
+            Submit protein sequences, view submitted entries, 
+            and view Alphafold folding predictions from processed entries.
           </p>
         </div>
 
