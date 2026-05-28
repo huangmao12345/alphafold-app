@@ -114,7 +114,7 @@ export default function ApproveSequencesDashboard() {
               Submitted Sequences for Approval
             </h1>
             <p className="text-slate-400 text-sm mt-1">
-              Select and dispatch pending vaccine sequence candidates directly into the AlphaFold prediction engine.
+              Select and dispatch pending sequences directly into the AlphaFold prediction engine.
             </p>
           </div>
           <Link 
@@ -217,9 +217,20 @@ export default function ApproveSequencesDashboard() {
                             {sequence.project?.name || "Unassigned"}
                           </span>
                         </td>
-                        <td className="py-4 px-4 text-right text-xs text-slate-400 font-mono">
-                          {new Date(sequence.createdAt).toLocaleString()}
-                        </td>
+                        <td className="p-4 text-slate-400 font-mono text-xs">
+                        {sequence.createdAt ? (() => {
+                          // 1. Coerce whatever type comes across into a base-10 integer number
+                          const timestampInt = parseInt(String(sequence.createdAt), 10);
+                          
+                          // 2. If it's a valid numerical timestamp, build a real date, otherwise wrap the raw string fallback
+                          const dateObject = !isNaN(timestampInt) ? new Date(timestampInt) : new Date(sequence.createdAt);
+                          
+                          // 3. Fallback check to safely print just the YYYY-MM-DD string part without crashing
+                          return !isNaN(dateObject.getTime()) 
+                            ? dateObject.toISOString().split('T')[0] 
+                            : "N/A";
+                        })() : "N/A"}
+                      </td>
                       </tr>
                     );
                   })}
