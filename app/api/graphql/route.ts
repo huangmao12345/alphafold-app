@@ -2,6 +2,8 @@ import { createYoga, createSchema } from 'graphql-yoga';
 import { typeDefs, resolvers } from '@/lib/schema';
 import { NextRequest } from 'next/server';
 
+export const runtime = 'nodejs';
+
 const schema = createSchema({
   typeDefs,
   resolvers,
