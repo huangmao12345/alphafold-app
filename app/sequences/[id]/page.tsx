@@ -48,7 +48,14 @@ async function getSequenceData(id: string): Promise<SequenceData | null> {
   `;
 
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    // AUTOMATIC LOCALHOST + VERCEL DYNAMIC URL ROUTER PATCH:
+    // 1. Checks for user-defined public environment URL
+    // 2. Checks for Vercel's native deployment domain flag (injects 'https://')
+    // 3. Defaults to localhost for local terminal dev runs
+    const baseUrl = 
+      process.env.NEXT_PUBLIC_APP_URL || 
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
     const res = await fetch(`${baseUrl}/api/graphql`, {
       method: 'POST',
       headers: {
@@ -103,7 +110,7 @@ export default async function SequenceDetailsPage({ params }: SequencePageProps)
             </span>
             <h1 className="text-3xl font-bold mt-1">{sequence.name}</h1>
             <p className="text-slate-400 text-sm mt-1">
-              Project: <span className="font-semibold text-slate-200">{sequence.project.name}</span>
+              Project: <span className="font-semibold text-slate-200">{sequence.project?.name || "Unassigned"}</span>
             </p>
           </div>
           <div className="flex flex-col items-end gap-3 mt-2">
