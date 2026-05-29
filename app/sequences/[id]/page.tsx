@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 
 type JobStatus = "SUBMITTED" | "APPROVED" | "IN_PROCESS" | "PROCESSED" | "FAILED";
@@ -31,57 +33,61 @@ const getStatusBadge = (status: JobStatus) => {
   return `px-3 py-1 text-xs font-semibold rounded-full border ${styles[status] || styles.SUBMITTED}`;
 };
 
-// Real GraphQL Fetching Engine
-async function getSequenceData(id: string): Promise<SequenceData | null> {
-  const query = `
-    query GetSequence($id: ID!) {
-      sequence(id: $id) {
-        id
-        name
-        aminoAcids
-        status
-        project {
-          name
+export default function SequenceDetailsPage({ params }: SequencePageProps) {
+  // 1. Setup client-side state maps to hold the single row item data
+  const [sequence, setSequence] = useState<SequenceData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSingleSequence = async () => {
+      try {
+        const resolvedParams = await params;
+        const targetId = resolvedParams.id;
+
+        // Grabs the single object by feeding arguments into your existing schema resolver
+        const response = await fetch("/api/graphql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: `
+              query GetSingleSequence($id: ID!) {
+                sequence(id: $id) {
+                  id
+                  name
+                  aminoAcids
+                  status
+                  project {
+                    name
+                  }
+                }
+              }
+            `,
+            variables: { id: targetId },
+          }),
+        });
+
+        const { data } = await response.json();
+        if (data?.sequence) {
+          setSequence(data.sequence);
         }
+      } catch (error) {
+        console.error("Client fetch error on item view:", error);
+      } finally {
+        setIsLoading(false);
       }
-    }
-  `;
+    };
 
-  try {
-    // AUTOMATIC LOCALHOST + VERCEL DYNAMIC URL ROUTER PATCH:
-    // 1. Checks for user-defined public environment URL
-    // 2. Checks for Vercel's native deployment domain flag (injects 'https://')
-    // 3. Defaults to localhost for local terminal dev runs
-    const baseUrl = 
-      process.env.NEXT_PUBLIC_APP_URL || 
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    fetchSingleSequence();
+  }, [params]);
 
-    const res = await fetch(`${baseUrl}/api/graphql`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query, variables: { id } }),
-      cache: 'no-store', 
-    });
-
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    const json = await res.json();
-    if (json.errors) {
-      console.error("GraphQL errors:", json.errors);
-      return null;
-    }
-    return json.data.sequence;
-  } catch (error) {
-    console.error("Fetch error:", error);
-    return null;
+  // Handle standard layout loading placeholder framework
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-slate-100 p-8 flex items-center justify-center">
+        <div className="text-slate-400">Loading sequence data topology...</div>
+      </div>
+    );
   }
-}
-
-export default async function SequenceDetailsPage({ params }: SequencePageProps) {
-  const resolvedParams = await params;
-  const sequenceId = resolvedParams.id;
-  const sequence = await getSequenceData(sequenceId);
 
   // Fallback if sequence is missing from DB
   if (!sequence) {
